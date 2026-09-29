@@ -21,6 +21,10 @@ ENV PATH=/root/.pnpm/bin:$PATH
 # Copy package metadata first for better dependency caching
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
+# Copy local extension packages (e.g. pallet) referenced via file: deps in package.json
+# Requires the named build context "pallet" -> ./packages/pallet (see docker-compose.yml).
+COPY --from=pallet / /packages/pallet
+
 # Copy over .npmrc if applicable
 COPY .npmr[c] ./
 

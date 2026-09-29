@@ -27,6 +27,7 @@
         "fleetbase/customer-portal-api": "^0.0.15",
         "fleetbase/storefront-api": "^0.4.23",
         "fleetbase/ledger-api": "^0.0.11",
+        "fleetbase/pallet-api": "^0.0.2",
         "fleetbase/valhalla-api": "^0.0.4",
         "fleetbase/vroom-api": "^0.0.4",
         "guzzlehttp/guzzle": "^7.0.1",
@@ -68,6 +69,13 @@
                 "fleetbase/valhalla-api",
                 "fleetbase/vroom-api"
             ]
+        },
+        {
+            "type": "path",
+            "url": "../packages/pallet",
+            "options": {
+                "symlink": false
+            }
         }
     ],
     "autoload": {

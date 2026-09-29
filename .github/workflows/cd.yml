@@ -213,7 +213,11 @@ jobs:
           # ensure file ends with a newline
           printf '\n' >> ./environments/.env.production
           
-          echo "EXTENSIONS=${{ secrets.EXTENSIONS }}" >> ./environments/.env.production
+          if [[ -n "${{ secrets.EXTENSIONS }}" ]]; then
+            echo "EXTENSIONS=${{ secrets.EXTENSIONS }},pallet" >> ./environments/.env.production
+          else
+            echo "EXTENSIONS=pallet" >> ./environments/.env.production
+          fi
           echo "LOGROCKET_APP_ID=${{ secrets.LOGROCKET_APP_ID }}" >> ./environments/.env.production
           echo "STRIPE_KEY=${{ secrets.STRIPE_KEY }}" >> ./environments/.env.production
           echo "STRIPE_PRICE_LICENSE_ANNUAL_ID=${{ secrets.STRIPE_PRICE_LICENSE_ANNUAL_ID }}" >> ./environments/.env.production
