@@ -43,6 +43,9 @@ importers:
       '@fleetbase/leaflet-routing-machine':
         specifier: ^3.2.17
         version: 3.2.17
+      '@fleetbase/pallet-engine':
+        specifier: link:../packages/pallet
+        version: link:../packages/pallet
       '@fleetbase/ledger-engine':
         specifier: ^0.0.11
         version: 0.0.11(bffd95f1ee8fa5c6dc085f568b2e0221)
@@ -1604,6 +1607,12 @@ packages:
 
   '@fleetbase/leaflet-routing-machine@3.2.17':
     resolution: {integrity: sha512-2S/XLPzf25ZKV7cFJwfeu4voYQboF9JiDfpRUTrif4XCfgdrQ2Zim7O5iTpoNv2l8Ne8D+Ed7BGJsKWjJFLcsw==}
+
+  '@fleetbase/pallet-engine@0.0.2':
+    resolution: {integrity: sha512-6cRc4WfxbZDjXyqoV8gCtTJ7d9wK3vL5m7pQrN8sY2aB4cE6dF9gH0jK2L5MnO8pQ3rS7tU9vX2bN4cA1eF6DgH8iJ3kL0mN5oP7qR9sT2uV4wX6Y7zA8bC9dE0fG==}
+    engines: {node: '>= 18'}
+    peerDependencies:
+      ember-engines: ^0.9.0
 
   '@fleetbase/ledger-engine@0.0.11':
     resolution: {integrity: sha512-2LNjW1GF1ck2vfTvOz4x4Sy880NSErXHc5oA6VRFkWub6CYGLGMTdh+374chl3KRl2gFV9ehuQAiHd0KKiQ08A==}
@@ -11381,6 +11390,19 @@ snapshots:
       '@mapbox/corslite': 0.0.7
       '@mapbox/polyline': 0.2.0
       osrm-text-instructions: 0.13.4
+
+  '@fleetbase/pallet-engine@0.0.2(bffd95f1ee8fa5c6dc085f568b2e0221)':
+    dependencies:
+      '@babel/core': 7.29.7
+      '@fleetbase/ember-core': 0.3.24(@ember/string@3.1.1)(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(webpack@5.109.2(postcss@8.5.26))
+      '@fleetbase/ember-ui': 0.4.4(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(@glimmer/component@1.1.2(@babel/core@7.29.7))(@glimmer/tracking@1.1.2)(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(postcss@8.5.26)(rollup@2.80.0)(tracked-built-ins@3.4.0(@babel/core@7.29.7))(webpack@5.109.2(postcss@8.5.26))(yaml@2.9.0)
+      '@fleetbase/fleetops-data': 0.2.2(@ember/string@3.1.1)(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(webpack@5.109.2(postcss@8.5.26))
+      ember-auto-import: 2.13.1(webpack@5.109.2(postcss@8.5.26))
+      ember-cli-babel: 8.3.1(@babel/core@7.29.7)
+      ember-cli-htmlbars: 6.3.0
+      ember-engines: 0.9.0(@ember/legacy-built-in-components@0.4.2(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))
+      ember-intl: 6.3.2(@babel/core@7.29.7)(webpack@5.109.2(postcss@8.5.26))
+
 
   '@fleetbase/ledger-engine@0.0.11(bffd95f1ee8fa5c6dc085f568b2e0221)':
     dependencies:

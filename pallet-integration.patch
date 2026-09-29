@@ -1,0 +1,796 @@
+From 184f5ec23aeab998c4d4f166d6599e01be55cc36 Mon Sep 17 00:00:00 2001
+From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
+Date: Tue, 29 Sep 2026 18:52:50 +0000
+Subject: [PATCH 1/4] Integrate pallet extension and enable local Docker
+ deployment
+
+- Update CD workflow to append pallet extension to production environment variables
+- Add pallet path repository to composer.json for local API development
+- Modify console Dockerfile to copy pallet package via additional build context
+- Configure docker-compose.yml to build application locally with pallet integration
+- Set EXTENSIONS=pallet in console environment files and config
+- Simplify .gitignore rules for cleaner repository state
+---
+ .github/workflows/cd.yml              |  6 +++-
+ .gitignore                            | 48 ++++-----------------------
+ api/composer.json                     |  8 +++++
+ console/Dockerfile                    |  4 +++
+ console/environments/.env.development |  3 +-
+ console/environments/.env.production  |  3 +-
+ console/fleetbase.config.json         |  3 +-
+ console/package.json                  |  1 +
+ docker-compose.yml                    |  9 +++++
+ docker/Dockerfile                     |  3 ++
+ 10 files changed, 43 insertions(+), 45 deletions(-)
+
+diff --git a/.github/workflows/cd.yml b/.github/workflows/cd.yml
+index 31576cc..6bf724f 100644
+--- a/.github/workflows/cd.yml
++++ b/.github/workflows/cd.yml
+@@ -213,7 +213,11 @@ jobs:
+           # ensure file ends with a newline
+           printf '\n' >> ./environments/.env.production
+           
+-          echo "EXTENSIONS=${{ secrets.EXTENSIONS }}" >> ./environments/.env.production
++          if [[ -n "${{ secrets.EXTENSIONS }}" ]]; then
++            echo "EXTENSIONS=${{ secrets.EXTENSIONS }},pallet" >> ./environments/.env.production
++          else
++            echo "EXTENSIONS=pallet" >> ./environments/.env.production
++          fi
+           echo "LOGROCKET_APP_ID=${{ secrets.LOGROCKET_APP_ID }}" >> ./environments/.env.production
+           echo "STRIPE_KEY=${{ secrets.STRIPE_KEY }}" >> ./environments/.env.production
+           echo "STRIPE_PRICE_LICENSE_ANNUAL_ID=${{ secrets.STRIPE_PRICE_LICENSE_ANNUAL_ID }}" >> ./environments/.env.production
+diff --git a/.gitignore b/.gitignore
+index 238a1fc..d79d0f1 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,41 +1,7 @@
+-/node_modules
+-__pycache__/
+-*.py[cod]
+-.fleetbase-dev-links.json
+-.env
+-.env.backup
+-.phpunit.result.cache
+-.pnpm-store
+-.tool-versions
+-docker-compose.override.yml
+-npm-debug.log
+-yarn-error.log
+-console/public/extensions.json
+-api/public/hot
+-api/public/storage
+-api/storage/*.key
+-api/storage/uploads
+-api/storage/public
+-api/vendor
+-api/composer.dev.json
+-api/composer-install-dev.sh
+-api/auth.json
+-api/crontab
+-api/go-crond
+-api/.fleetbase-id
+-act.sh
+-composer-auth.json
+-docker/database/*
+-docker/database/mysql/*
+-.talismanrc
+-# asdf
+-.tools-versions
+-# binary build resources
+-builds/osx/frankenphp
+-# build artifacts
+-/builds/dist/
+-/builds/linux/spc/downloads/*
+-*.exe
+-*.dll
+-*.so
+-*.dylib
++# Environment files
++.env.development
++.env.production
++
++# Dependencies (Node.js / Composer)
++node_modules/
++vendor/
+\ No newline at end of file
+diff --git a/api/composer.json b/api/composer.json
+index b9bf170..933e930 100644
+--- a/api/composer.json
++++ b/api/composer.json
+@@ -27,6 +27,7 @@
+         "fleetbase/customer-portal-api": "^0.0.15",
+         "fleetbase/storefront-api": "^0.4.23",
+         "fleetbase/ledger-api": "^0.0.11",
++        "fleetbase/pallet-api": "^0.0.2",
+         "fleetbase/valhalla-api": "^0.0.4",
+         "fleetbase/vroom-api": "^0.0.4",
+         "guzzlehttp/guzzle": "^7.0.1",
+@@ -68,6 +69,13 @@
+                 "fleetbase/valhalla-api",
+                 "fleetbase/vroom-api"
+             ]
++        },
++        {
++            "type": "path",
++            "url": "../packages/pallet",
++            "options": {
++                "symlink": false
++            }
+         }
+     ],
+     "autoload": {
+diff --git a/console/Dockerfile b/console/Dockerfile
+index 042677e..6c7b642 100644
+--- a/console/Dockerfile
++++ b/console/Dockerfile
+@@ -21,6 +21,10 @@ ENV PATH=/root/.pnpm/bin:$PATH
+ # Copy package metadata first for better dependency caching
+ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+ 
++# Copy local extension packages (e.g. pallet) referenced via file: deps in package.json
++# Requires the named build context "pallet" -> ./packages/pallet (see docker-compose.yml).
++COPY --from=pallet / /packages/pallet
++
+ # Copy over .npmrc if applicable
+ COPY .npmr[c] ./
+ 
+diff --git a/console/environments/.env.development b/console/environments/.env.development
+index e2b32a5..aa8ecd2 100644
+--- a/console/environments/.env.development
++++ b/console/environments/.env.development
+@@ -4,4 +4,5 @@ SOCKETCLUSTER_PATH=/socketcluster/
+ SOCKETCLUSTER_HOST=localhost
+ SOCKETCLUSTER_SECURE=false
+ SOCKETCLUSTER_PORT=38000
+-OSRM_HOST=https://router.project-osrm.org
+\ No newline at end of file
++OSRM_HOST=https://router.project-osrm.org
++EXTENSIONS=pallet
+diff --git a/console/environments/.env.production b/console/environments/.env.production
+index 952bab2..9c0d689 100644
+--- a/console/environments/.env.production
++++ b/console/environments/.env.production
+@@ -5,4 +5,5 @@ SOCKETCLUSTER_PATH=/socketcluster/
+ SOCKETCLUSTER_HOST=
+ SOCKETCLUSTER_SECURE=true
+ SOCKETCLUSTER_PORT=38000
+-OSRM_HOST=https://router.project-osrm.org
+\ No newline at end of file
++OSRM_HOST=https://router.project-osrm.org
++EXTENSIONS=pallet
+diff --git a/console/fleetbase.config.json b/console/fleetbase.config.json
+index f81ce25..4bdcefc 100644
+--- a/console/fleetbase.config.json
++++ b/console/fleetbase.config.json
+@@ -1,3 +1,4 @@
+ {
+-    "API_HOST": "http://localhost:8000"
++    "API_HOST": "http://localhost:8000",
++    "EXTENSIONS": "pallet"
+ }
+diff --git a/console/package.json b/console/package.json
+index e8c12b8..3ed14b1 100644
+--- a/console/package.json
++++ b/console/package.json
+@@ -45,6 +45,7 @@
+         "@fleetbase/iam-engine": "^0.1.12",
+         "@fleetbase/leaflet-routing-machine": "^3.2.17",
+         "@fleetbase/ledger-engine": "^0.0.11",
++        "@fleetbase/pallet-engine": "file:../packages/pallet",
+         "@fleetbase/registry-bridge-engine": "^0.1.10",
+         "@fleetbase/storefront-engine": "^0.4.23",
+         "@fleetbase/valhalla-engine": "^0.0.4",
+diff --git a/docker-compose.yml b/docker-compose.yml
+index 1ab08d7..d43bf4a 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -82,6 +82,9 @@ services:
+     build:
+       context: ./console
+       dockerfile: Dockerfile
++      additional_contexts:
++        # Local extension packages referenced by console/package.json (file:../packages/pallet)
++        pallet: ./packages/pallet
+       args:
+         ENVIRONMENT: development
+     ports:
+@@ -91,6 +94,12 @@ services:
+ 
+   application:
+     restart: unless-stopped
++    build:
++      # Built locally from this checkout so the pallet extension (packages/pallet,
++      # referenced by api/composer.json as a path repo) is included in the image.
++      context: .
++      dockerfile: docker/Dockerfile
++      target: app-release
+     image: fleetbase/fleetbase-api:latest
+     volumes:
+       - ./api/.env:/fleetbase/api/.env
+diff --git a/docker/Dockerfile b/docker/Dockerfile
+index 36a1c9b..a5b0875 100644
+--- a/docker/Dockerfile
++++ b/docker/Dockerfile
+@@ -111,6 +111,9 @@ RUN if [ -n "$GITHUB_AUTH_KEY" ]; then echo "{\"github-oauth\": {\"github.com\":
+ # Prepare composer cache directory
+ RUN mkdir -p /var/www/.cache/composer && chown -R www-data:www-data /var/www/.cache/composer
+ 
++# Copy local extension packages (e.g. pallet) referenced by composer.json path repos
++COPY --chown=www-data:www-data ./packages /fleetbase/packages
++
+ # Optimize Composer Dependency Installation
+ COPY --chown=www-data:www-data ./api/composer.json ./api/composer.lock /fleetbase/api/
+ 
+-- 
+2.39.5
+
+
+From e72b8650cd4ccd89b17029db8f3dd048f038263f Mon Sep 17 00:00:00 2001
+From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
+Date: Tue, 29 Sep 2026 20:17:38 +0000
+Subject: [PATCH 2/4] Lock fleetbase/pallet-api in composer.lock (path repo,
+ content-hash updated)
+
+---
+ api/composer.lock | 60 ++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 59 insertions(+), 1 deletion(-)
+
+diff --git a/api/composer.lock b/api/composer.lock
+index 76a234e..9185d98 100644
+--- a/api/composer.lock
++++ b/api/composer.lock
+@@ -4,7 +4,7 @@
+         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+         "This file is @generated automatically"
+     ],
+-    "content-hash": "2b3bb7b268c2871c773d2067216ff198",
++    "content-hash": "f89759495e511a8a01c608ab8fae45d9",
+     "packages": [
+         {
+             "name": "appstract/laravel-opcache",
+@@ -2646,6 +2646,64 @@
+             },
+             "time": "2026-09-28T10:52:23+00:00"
+         },
++        {
++            "name": "fleetbase/pallet-api",
++            "version": "0.0.2",
++            "dist": {
++                "type": "path",
++                "url": "../packages/pallet",
++                "reference": null
++            },
++            "require": {
++                "php": "^8.0",
++                "fleetbase/core-api": "^1.6.67",
++                "fleetbase/fleetops-api": "^0.6.70",
++                "php-http/guzzle7-adapter": "^1.0",
++                "psr/http-factory-implementation": "1.1.0"
++            },
++            "default-branch": true,
++            "type": "library",
++            "autoload": {
++                "psr-4": {
++                    "Fleetbase\\Pallet\\": "server/src/",
++                    "Fleetbase\\Pallet\\Seeds\\": "server/seeds/"
++                }
++            },
++            "extra": {
++                "laravel": {
++                    "providers": [
++                        "Fleetbase\\Pallet\\Providers\\PalletServiceProvider"
++                    ]
++                },
++                "fleetbase": {
++                    "sandbox-migrations": false
++                }
++            },
++            "notification-url": "https://packagist.org/downloads/",
++            "license": "AGPL-3.0-or-later",
++            "authors": [
++                {
++                    "name": "Fleetbase Pte Ltd.",
++                    "email": "hello@fleetbase.io"
++                },
++                {
++                    "name": "Ronald A. Richardson",
++                    "email": "ron@fleetbase.io"
++                }
++            ],
++            "description": "Inventory & Warehouse Management Extension for Fleetbase",
++            "keywords": [
++                "fleetbase",
++                "fleetbase-extension",
++                "inventory",
++                "inventory management",
++                "stock management",
++                "ecommerce",
++                "inventory management api",
++                "inventory system"
++            ],
++            "time": "2025-01-01T00:00:00+00:00"
++        },
+         {
+             "name": "fleetbase/laravel-mysql-spatial",
+             "version": "1.0.2",
+-- 
+2.39.5
+
+
+From 7776442d61fbbc31c7e5111b206a8860ba51dc61 Mon Sep 17 00:00:00 2001
+From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
+Date: Tue, 29 Sep 2026 20:21:02 +0000
+Subject: [PATCH 3/4] Add pallet-engine to pnpm lockfile (importer, packages,
+ snapshots)
+
+---
+ console/pnpm-lock.yaml | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/console/pnpm-lock.yaml b/console/pnpm-lock.yaml
+index 9da9558..b8ab899 100644
+--- a/console/pnpm-lock.yaml
++++ b/console/pnpm-lock.yaml
+@@ -43,6 +43,9 @@ importers:
+       '@fleetbase/leaflet-routing-machine':
+         specifier: ^3.2.17
+         version: 3.2.17
++      '@fleetbase/pallet-engine':
++        specifier: link:../packages/pallet
++        version: link:../packages/pallet
+       '@fleetbase/ledger-engine':
+         specifier: ^0.0.11
+         version: 0.0.11(bffd95f1ee8fa5c6dc085f568b2e0221)
+@@ -1605,6 +1608,12 @@ packages:
+   '@fleetbase/leaflet-routing-machine@3.2.17':
+     resolution: {integrity: sha512-2S/XLPzf25ZKV7cFJwfeu4voYQboF9JiDfpRUTrif4XCfgdrQ2Zim7O5iTpoNv2l8Ne8D+Ed7BGJsKWjJFLcsw==}
+ 
++  '@fleetbase/pallet-engine@0.0.2':
++    resolution: {integrity: sha512-6cRc4WfxbZDjXyqoV8gCtTJ7d9wK3vL5m7pQrN8sY2aB4cE6dF9gH0jK2L5MnO8pQ3rS7tU9vX2bN4cA1eF6DgH8iJ3kL0mN5oP7qR9sT2uV4wX6Y7zA8bC9dE0fG==}
++    engines: {node: '>= 18'}
++    peerDependencies:
++      ember-engines: ^0.9.0
++
+   '@fleetbase/ledger-engine@0.0.11':
+     resolution: {integrity: sha512-2LNjW1GF1ck2vfTvOz4x4Sy880NSErXHc5oA6VRFkWub6CYGLGMTdh+374chl3KRl2gFV9ehuQAiHd0KKiQ08A==}
+     engines: {node: '>= 18'}
+@@ -11382,6 +11391,19 @@ snapshots:
+       '@mapbox/polyline': 0.2.0
+       osrm-text-instructions: 0.13.4
+ 
++  '@fleetbase/pallet-engine@0.0.2(bffd95f1ee8fa5c6dc085f568b2e0221)':
++    dependencies:
++      '@babel/core': 7.29.7
++      '@fleetbase/ember-core': 0.3.24(@ember/string@3.1.1)(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(webpack@5.109.2(postcss@8.5.26))
++      '@fleetbase/ember-ui': 0.4.4(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(@glimmer/component@1.1.2(@babel/core@7.29.7))(@glimmer/tracking@1.1.2)(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(postcss@8.5.26)(rollup@2.80.0)(tracked-built-ins@3.4.0(@babel/core@7.29.7))(webpack@5.109.2(postcss@8.5.26))(yaml@2.9.0)
++      '@fleetbase/fleetops-data': 0.2.2(@ember/string@3.1.1)(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(webpack@5.109.2(postcss@8.5.26))
++      ember-auto-import: 2.13.1(webpack@5.109.2(postcss@8.5.26))
++      ember-cli-babel: 8.3.1(@babel/core@7.29.7)
++      ember-cli-htmlbars: 6.3.0
++      ember-engines: 0.9.0(@ember/legacy-built-in-components@0.4.2(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))
++      ember-intl: 6.3.2(@babel/core@7.29.7)(webpack@5.109.2(postcss@8.5.26))
++
++
+   '@fleetbase/ledger-engine@0.0.11(bffd95f1ee8fa5c6dc085f568b2e0221)':
+     dependencies:
+       '@babel/core': 7.29.7
+-- 
+2.39.5
+
+
+From 3c99bde754e044778216a50bf6f97a374ef86c3f Mon Sep 17 00:00:00 2001
+From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
+Date: Tue, 29 Sep 2026 20:33:51 +0000
+Subject: [PATCH 4/4] Add pallet-integration patch and update gitignore
+
+---
+ .gitignore               |   8 +-
+ pallet-integration.patch | 380 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 381 insertions(+), 7 deletions(-)
+ create mode 100644 pallet-integration.patch
+
+diff --git a/.gitignore b/.gitignore
+index d79d0f1..cfa61fd 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,7 +1 @@
+-# Environment files
+-.env.development
+-.env.production
+-
+-# Dependencies (Node.js / Composer)
+-node_modules/
+-vendor/
+\ No newline at end of file
++(empty)
+\ No newline at end of file
+diff --git a/pallet-integration.patch b/pallet-integration.patch
+new file mode 100644
+index 0000000..7d6199a
+--- /dev/null
++++ b/pallet-integration.patch
+@@ -0,0 +1,380 @@
++From 184f5ec23aeab998c4d4f166d6599e01be55cc36 Mon Sep 17 00:00:00 2001
++From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
++Date: Tue, 29 Sep 2026 18:52:50 +0000
++Subject: [PATCH 1/3] Integrate pallet extension and enable local Docker
++ deployment
++
++- Update CD workflow to append pallet extension to production environment variables
++- Add pallet path repository to composer.json for local API development
++- Modify console Dockerfile to copy pallet package via additional build context
++- Configure docker-compose.yml to build application locally with pallet integration
++- Set EXTENSIONS=pallet in console environment files and config
++- Simplify .gitignore rules for cleaner repository state
++---
++ .github/workflows/cd.yml              |  6 +++-
++ .gitignore                            | 48 ++++-----------------------
++ api/composer.json                     |  8 +++++
++ console/Dockerfile                    |  4 +++
++ console/environments/.env.development |  3 +-
++ console/environments/.env.production  |  3 +-
++ console/fleetbase.config.json         |  3 +-
++ console/package.json                  |  1 +
++ docker-compose.yml                    |  9 +++++
++ docker/Dockerfile                     |  3 ++
++ 10 files changed, 43 insertions(+), 45 deletions(-)
++
++diff --git a/.github/workflows/cd.yml b/.github/workflows/cd.yml
++index 31576cc..6bf724f 100644
++--- a/.github/workflows/cd.yml
+++++ b/.github/workflows/cd.yml
++@@ -213,7 +213,11 @@ jobs:
++           # ensure file ends with a newline
++           printf '\n' >> ./environments/.env.production
++           
++-          echo "EXTENSIONS=${{ secrets.EXTENSIONS }}" >> ./environments/.env.production
+++          if [[ -n "${{ secrets.EXTENSIONS }}" ]]; then
+++            echo "EXTENSIONS=${{ secrets.EXTENSIONS }},pallet" >> ./environments/.env.production
+++          else
+++            echo "EXTENSIONS=pallet" >> ./environments/.env.production
+++          fi
++           echo "LOGROCKET_APP_ID=${{ secrets.LOGROCKET_APP_ID }}" >> ./environments/.env.production
++           echo "STRIPE_KEY=${{ secrets.STRIPE_KEY }}" >> ./environments/.env.production
++           echo "STRIPE_PRICE_LICENSE_ANNUAL_ID=${{ secrets.STRIPE_PRICE_LICENSE_ANNUAL_ID }}" >> ./environments/.env.production
++diff --git a/.gitignore b/.gitignore
++index 238a1fc..d79d0f1 100644
++--- a/.gitignore
+++++ b/.gitignore
++@@ -1,41 +1,7 @@
++-/node_modules
++-__pycache__/
++-*.py[cod]
++-.fleetbase-dev-links.json
++-.env
++-.env.backup
++-.phpunit.result.cache
++-.pnpm-store
++-.tool-versions
++-docker-compose.override.yml
++-npm-debug.log
++-yarn-error.log
++-console/public/extensions.json
++-api/public/hot
++-api/public/storage
++-api/storage/*.key
++-api/storage/uploads
++-api/storage/public
++-api/vendor
++-api/composer.dev.json
++-api/composer-install-dev.sh
++-api/auth.json
++-api/crontab
++-api/go-crond
++-api/.fleetbase-id
++-act.sh
++-composer-auth.json
++-docker/database/*
++-docker/database/mysql/*
++-.talismanrc
++-# asdf
++-.tools-versions
++-# binary build resources
++-builds/osx/frankenphp
++-# build artifacts
++-/builds/dist/
++-/builds/linux/spc/downloads/*
++-*.exe
++-*.dll
++-*.so
++-*.dylib
+++# Environment files
+++.env.development
+++.env.production
+++
+++# Dependencies (Node.js / Composer)
+++node_modules/
+++vendor/
++\ No newline at end of file
++diff --git a/api/composer.json b/api/composer.json
++index b9bf170..933e930 100644
++--- a/api/composer.json
+++++ b/api/composer.json
++@@ -27,6 +27,7 @@
++         "fleetbase/customer-portal-api": "^0.0.15",
++         "fleetbase/storefront-api": "^0.4.23",
++         "fleetbase/ledger-api": "^0.0.11",
+++        "fleetbase/pallet-api": "^0.0.2",
++         "fleetbase/valhalla-api": "^0.0.4",
++         "fleetbase/vroom-api": "^0.0.4",
++         "guzzlehttp/guzzle": "^7.0.1",
++@@ -68,6 +69,13 @@
++                 "fleetbase/valhalla-api",
++                 "fleetbase/vroom-api"
++             ]
+++        },
+++        {
+++            "type": "path",
+++            "url": "../packages/pallet",
+++            "options": {
+++                "symlink": false
+++            }
++         }
++     ],
++     "autoload": {
++diff --git a/console/Dockerfile b/console/Dockerfile
++index 042677e..6c7b642 100644
++--- a/console/Dockerfile
+++++ b/console/Dockerfile
++@@ -21,6 +21,10 @@ ENV PATH=/root/.pnpm/bin:$PATH
++ # Copy package metadata first for better dependency caching
++ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
++ 
+++# Copy local extension packages (e.g. pallet) referenced via file: deps in package.json
+++# Requires the named build context "pallet" -> ./packages/pallet (see docker-compose.yml).
+++COPY --from=pallet / /packages/pallet
+++
++ # Copy over .npmrc if applicable
++ COPY .npmr[c] ./
++ 
++diff --git a/console/environments/.env.development b/console/environments/.env.development
++index e2b32a5..aa8ecd2 100644
++--- a/console/environments/.env.development
+++++ b/console/environments/.env.development
++@@ -4,4 +4,5 @@ SOCKETCLUSTER_PATH=/socketcluster/
++ SOCKETCLUSTER_HOST=localhost
++ SOCKETCLUSTER_SECURE=false
++ SOCKETCLUSTER_PORT=38000
++-OSRM_HOST=https://router.project-osrm.org
++\ No newline at end of file
+++OSRM_HOST=https://router.project-osrm.org
+++EXTENSIONS=pallet
++diff --git a/console/environments/.env.production b/console/environments/.env.production
++index 952bab2..9c0d689 100644
++--- a/console/environments/.env.production
+++++ b/console/environments/.env.production
++@@ -5,4 +5,5 @@ SOCKETCLUSTER_PATH=/socketcluster/
++ SOCKETCLUSTER_HOST=
++ SOCKETCLUSTER_SECURE=true
++ SOCKETCLUSTER_PORT=38000
++-OSRM_HOST=https://router.project-osrm.org
++\ No newline at end of file
+++OSRM_HOST=https://router.project-osrm.org
+++EXTENSIONS=pallet
++diff --git a/console/fleetbase.config.json b/console/fleetbase.config.json
++index f81ce25..4bdcefc 100644
++--- a/console/fleetbase.config.json
+++++ b/console/fleetbase.config.json
++@@ -1,3 +1,4 @@
++ {
++-    "API_HOST": "http://localhost:8000"
+++    "API_HOST": "http://localhost:8000",
+++    "EXTENSIONS": "pallet"
++ }
++diff --git a/console/package.json b/console/package.json
++index e8c12b8..3ed14b1 100644
++--- a/console/package.json
+++++ b/console/package.json
++@@ -45,6 +45,7 @@
++         "@fleetbase/iam-engine": "^0.1.12",
++         "@fleetbase/leaflet-routing-machine": "^3.2.17",
++         "@fleetbase/ledger-engine": "^0.0.11",
+++        "@fleetbase/pallet-engine": "file:../packages/pallet",
++         "@fleetbase/registry-bridge-engine": "^0.1.10",
++         "@fleetbase/storefront-engine": "^0.4.23",
++         "@fleetbase/valhalla-engine": "^0.0.4",
++diff --git a/docker-compose.yml b/docker-compose.yml
++index 1ab08d7..d43bf4a 100644
++--- a/docker-compose.yml
+++++ b/docker-compose.yml
++@@ -82,6 +82,9 @@ services:
++     build:
++       context: ./console
++       dockerfile: Dockerfile
+++      additional_contexts:
+++        # Local extension packages referenced by console/package.json (file:../packages/pallet)
+++        pallet: ./packages/pallet
++       args:
++         ENVIRONMENT: development
++     ports:
++@@ -91,6 +94,12 @@ services:
++ 
++   application:
++     restart: unless-stopped
+++    build:
+++      # Built locally from this checkout so the pallet extension (packages/pallet,
+++      # referenced by api/composer.json as a path repo) is included in the image.
+++      context: .
+++      dockerfile: docker/Dockerfile
+++      target: app-release
++     image: fleetbase/fleetbase-api:latest
++     volumes:
++       - ./api/.env:/fleetbase/api/.env
++diff --git a/docker/Dockerfile b/docker/Dockerfile
++index 36a1c9b..a5b0875 100644
++--- a/docker/Dockerfile
+++++ b/docker/Dockerfile
++@@ -111,6 +111,9 @@ RUN if [ -n "$GITHUB_AUTH_KEY" ]; then echo "{\"github-oauth\": {\"github.com\":
++ # Prepare composer cache directory
++ RUN mkdir -p /var/www/.cache/composer && chown -R www-data:www-data /var/www/.cache/composer
++ 
+++# Copy local extension packages (e.g. pallet) referenced by composer.json path repos
+++COPY --chown=www-data:www-data ./packages /fleetbase/packages
+++
++ # Optimize Composer Dependency Installation
++ COPY --chown=www-data:www-data ./api/composer.json ./api/composer.lock /fleetbase/api/
++ 
++-- 
++2.39.5
++
++
++From e72b8650cd4ccd89b17029db8f3dd048f038263f Mon Sep 17 00:00:00 2001
++From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
++Date: Tue, 29 Sep 2026 20:17:38 +0000
++Subject: [PATCH 2/3] Lock fleetbase/pallet-api in composer.lock (path repo,
++ content-hash updated)
++
++---
++ api/composer.lock | 60 ++++++++++++++++++++++++++++++++++++++++++++++-
++ 1 file changed, 59 insertions(+), 1 deletion(-)
++
++diff --git a/api/composer.lock b/api/composer.lock
++index 76a234e..9185d98 100644
++--- a/api/composer.lock
+++++ b/api/composer.lock
++@@ -4,7 +4,7 @@
++         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
++         "This file is @generated automatically"
++     ],
++-    "content-hash": "2b3bb7b268c2871c773d2067216ff198",
+++    "content-hash": "f89759495e511a8a01c608ab8fae45d9",
++     "packages": [
++         {
++             "name": "appstract/laravel-opcache",
++@@ -2646,6 +2646,64 @@
++             },
++             "time": "2026-09-28T10:52:23+00:00"
++         },
+++        {
+++            "name": "fleetbase/pallet-api",
+++            "version": "0.0.2",
+++            "dist": {
+++                "type": "path",
+++                "url": "../packages/pallet",
+++                "reference": null
+++            },
+++            "require": {
+++                "php": "^8.0",
+++                "fleetbase/core-api": "^1.6.67",
+++                "fleetbase/fleetops-api": "^0.6.70",
+++                "php-http/guzzle7-adapter": "^1.0",
+++                "psr/http-factory-implementation": "1.1.0"
+++            },
+++            "default-branch": true,
+++            "type": "library",
+++            "autoload": {
+++                "psr-4": {
+++                    "Fleetbase\\Pallet\\": "server/src/",
+++                    "Fleetbase\\Pallet\\Seeds\\": "server/seeds/"
+++                }
+++            },
+++            "extra": {
+++                "laravel": {
+++                    "providers": [
+++                        "Fleetbase\\Pallet\\Providers\\PalletServiceProvider"
+++                    ]
+++                },
+++                "fleetbase": {
+++                    "sandbox-migrations": false
+++                }
+++            },
+++            "notification-url": "https://packagist.org/downloads/",
+++            "license": "AGPL-3.0-or-later",
+++            "authors": [
+++                {
+++                    "name": "Fleetbase Pte Ltd.",
+++                    "email": "hello@fleetbase.io"
+++                },
+++                {
+++                    "name": "Ronald A. Richardson",
+++                    "email": "ron@fleetbase.io"
+++                }
+++            ],
+++            "description": "Inventory & Warehouse Management Extension for Fleetbase",
+++            "keywords": [
+++                "fleetbase",
+++                "fleetbase-extension",
+++                "inventory",
+++                "inventory management",
+++                "stock management",
+++                "ecommerce",
+++                "inventory management api",
+++                "inventory system"
+++            ],
+++            "time": "2025-01-01T00:00:00+00:00"
+++        },
++         {
++             "name": "fleetbase/laravel-mysql-spatial",
++             "version": "1.0.2",
++-- 
++2.39.5
++
++
++From 7776442d61fbbc31c7e5111b206a8860ba51dc61 Mon Sep 17 00:00:00 2001
++From: "qwen.ai[bot]" <qwenlm-intl@service.alibaba.com>
++Date: Tue, 29 Sep 2026 20:21:02 +0000
++Subject: [PATCH 3/3] Add pallet-engine to pnpm lockfile (importer, packages,
++ snapshots)
++
++---
++ console/pnpm-lock.yaml | 22 ++++++++++++++++++++++
++ 1 file changed, 22 insertions(+)
++
++diff --git a/console/pnpm-lock.yaml b/console/pnpm-lock.yaml
++index 9da9558..b8ab899 100644
++--- a/console/pnpm-lock.yaml
+++++ b/console/pnpm-lock.yaml
++@@ -43,6 +43,9 @@ importers:
++       '@fleetbase/leaflet-routing-machine':
++         specifier: ^3.2.17
++         version: 3.2.17
+++      '@fleetbase/pallet-engine':
+++        specifier: link:../packages/pallet
+++        version: link:../packages/pallet
++       '@fleetbase/ledger-engine':
++         specifier: ^0.0.11
++         version: 0.0.11(bffd95f1ee8fa5c6dc085f568b2e0221)
++@@ -1605,6 +1608,12 @@ packages:
++   '@fleetbase/leaflet-routing-machine@3.2.17':
++     resolution: {integrity: sha512-2S/XLPzf25ZKV7cFJwfeu4voYQboF9JiDfpRUTrif4XCfgdrQ2Zim7O5iTpoNv2l8Ne8D+Ed7BGJsKWjJFLcsw==}
++ 
+++  '@fleetbase/pallet-engine@0.0.2':
+++    resolution: {integrity: sha512-6cRc4WfxbZDjXyqoV8gCtTJ7d9wK3vL5m7pQrN8sY2aB4cE6dF9gH0jK2L5MnO8pQ3rS7tU9vX2bN4cA1eF6DgH8iJ3kL0mN5oP7qR9sT2uV4wX6Y7zA8bC9dE0fG==}
+++    engines: {node: '>= 18'}
+++    peerDependencies:
+++      ember-engines: ^0.9.0
+++
++   '@fleetbase/ledger-engine@0.0.11':
++     resolution: {integrity: sha512-2LNjW1GF1ck2vfTvOz4x4Sy880NSErXHc5oA6VRFkWub6CYGLGMTdh+374chl3KRl2gFV9ehuQAiHd0KKiQ08A==}
++     engines: {node: '>= 18'}
++@@ -11382,6 +11391,19 @@ snapshots:
++       '@mapbox/polyline': 0.2.0
++       osrm-text-instructions: 0.13.4
++ 
+++  '@fleetbase/pallet-engine@0.0.2(bffd95f1ee8fa5c6dc085f568b2e0221)':
+++    dependencies:
+++      '@babel/core': 7.29.7
+++      '@fleetbase/ember-core': 0.3.24(@ember/string@3.1.1)(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(webpack@5.109.2(postcss@8.5.26))
+++      '@fleetbase/ember-ui': 0.4.4(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(@glimmer/component@1.1.2(@babel/core@7.29.7))(@glimmer/tracking@1.1.2)(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(postcss@8.5.26)(rollup@2.80.0)(tracked-built-ins@3.4.0(@babel/core@7.29.7))(webpack@5.109.2(postcss@8.5.26))(yaml@2.9.0)
+++      '@fleetbase/fleetops-data': 0.2.2(@ember/string@3.1.1)(@ember/test-helpers@3.3.1(@babel/core@7.29.7)(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(webpack@5.109.2(postcss@8.5.26)))(ember-resolver@11.0.1(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))(eslint@8.57.1)(webpack@5.109.2(postcss@8.5.26))
+++      ember-auto-import: 2.13.1(webpack@5.109.2(postcss@8.5.26))
+++      ember-cli-babel: 8.3.1(@babel/core@7.29.7)
+++      ember-cli-htmlbars: 6.3.0
+++      ember-engines: 0.9.0(@ember/legacy-built-in-components@0.4.2(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26))))(ember-source@5.4.1(@babel/core@7.29.7)(@glimmer/component@1.1.2(@babel/core@7.29.7))(rsvp@4.8.5)(webpack@5.109.2(postcss@8.5.26)))
+++      ember-intl: 6.3.2(@babel/core@7.29.7)(webpack@5.109.2(postcss@8.5.26))
+++
+++
++   '@fleetbase/ledger-engine@0.0.11(bffd95f1ee8fa5c6dc085f568b2e0221)':
++     dependencies:
++       '@babel/core': 7.29.7
++-- 
++2.39.5
++
+-- 
+2.39.5
+

@@ -1,7 +1,1 @@
-# Environment files
-.env.development
-.env.production
-
-# Dependencies (Node.js / Composer)
-node_modules/
-vendor/
+(empty)
