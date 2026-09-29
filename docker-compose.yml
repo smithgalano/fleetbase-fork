@@ -82,6 +82,9 @@ services:
     build:
       context: ./console
       dockerfile: Dockerfile
+      additional_contexts:
+        # Local extension packages referenced by console/package.json (file:../packages/pallet)
+        pallet: ./packages/pallet
       args:
         ENVIRONMENT: development
     ports:
@@ -91,6 +94,12 @@ services:
 
   application:
     restart: unless-stopped
+    build:
+      # Built locally from this checkout so the pallet extension (packages/pallet,
+      # referenced by api/composer.json as a path repo) is included in the image.
+      context: .
+      dockerfile: docker/Dockerfile
+      target: app-release
     image: fleetbase/fleetbase-api:latest
     volumes:
       - ./api/.env:/fleetbase/api/.env

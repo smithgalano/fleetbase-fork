@@ -111,6 +111,9 @@ RUN if [ -n "$GITHUB_AUTH_KEY" ]; then echo "{\"github-oauth\": {\"github.com\":
 # Prepare composer cache directory
 RUN mkdir -p /var/www/.cache/composer && chown -R www-data:www-data /var/www/.cache/composer
 
+# Copy local extension packages (e.g. pallet) referenced by composer.json path repos
+COPY --chown=www-data:www-data ./packages /fleetbase/packages
+
 # Optimize Composer Dependency Installation
 COPY --chown=www-data:www-data ./api/composer.json ./api/composer.lock /fleetbase/api/
 
